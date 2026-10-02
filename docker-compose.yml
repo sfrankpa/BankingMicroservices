@@ -1,0 +1,106 @@
+services:
+
+  customer-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: banking-customer-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Banking2026!Secure"
+    ports:
+      - "14331:1433"
+    volumes:
+      - customer-db-data:/var/opt/mssql
+    networks:
+      - banking-network
+
+  account-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: banking-account-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Banking2026!Secure"
+    ports:
+      - "14332:1433"
+    volumes:
+      - account-db-data:/var/opt/mssql
+    networks:
+      - banking-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: banking-rabbitmq-compose
+    environment:
+        RABBITMQ_DEFAULT_USER: banking
+        RABBITMQ_DEFAULT_PASS: BankingRabbit2026
+    ports:
+        - "5672:5672"
+        - "15672:15672"
+    healthcheck:
+        test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+        interval: 10s
+        timeout: 5s
+        retries: 10
+        start_period: 10s
+    networks:
+        - banking-network
+
+  customer-service:
+    build:
+      context: .
+      dockerfile: CustomerService.API/Dockerfile
+    container_name: banking-customer-service
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:8080"
+
+      ConnectionStrings__DefaultConnection: "Server=customer-db,1433;Database=CustomerDb;User Id=sa;Password=Banking2026!Secure;TrustServerCertificate=True;"
+
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: banking
+      RabbitMq__Password: BankingRabbit2026
+      RabbitMq__ExchangeName: customer.events
+    ports:
+      - "8081:8080"
+    depends_on:
+        rabbitmq:
+            condition: service_healthy
+        customer-db:
+            condition: service_started
+    networks:
+      - banking-network
+
+  account-service:
+    build:
+      context: .
+      dockerfile: AccountService.API/Dockerfile
+    container_name: banking-account-service
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: "http://+:8080"
+
+      ConnectionStrings__DefaultConnection: "Server=account-db,1433;Database=AccountDb;User Id=sa;Password=Banking2026!Secure;TrustServerCertificate=True;"
+
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__UserName: banking
+      RabbitMq__Password: BankingRabbit2026
+      RabbitMq__ExchangeName: customer.events
+      RabbitMq__QueueName: account.customer.events
+    ports:
+      - "8082:8080"
+    depends_on:
+        rabbitmq:
+            condition: service_healthy
+        account-db:
+            condition: service_started
+    networks:
+      - banking-network
+
+volumes:
+  customer-db-data:
+  account-db-data:
+
+networks:
+  banking-network:
+    driver: bridge

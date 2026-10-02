@@ -1,0 +1,23 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.cache
+*.log
+
+# Visual Studio
+.vscode/
+
+# Docker / local
+docker-compose.override.yml
+
+# Configuración local
+appsettings.Development.json
+
+# Test results
+TestResults/
+
+# Sistema operativo
+Thumbs.db
+.DS_Store
